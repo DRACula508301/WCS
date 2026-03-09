@@ -1,6 +1,6 @@
 import ButtonGroup from 'react-bootstrap/ButtonGroup';
 import Dropdown from 'react-bootstrap/Dropdown';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 
 const EMPTY_LABEL = 'Select an option...';
 
@@ -13,12 +13,6 @@ function SplitDropdown({stepKey, title, options, value, onSelect}: {
             const [inputValue, setInputValue] = useState(value || EMPTY_LABEL);
             const [isFocused, setIsFocused] = useState(false);
             const [showDropdown, setShowDropdown] = useState(false);
-
-            useEffect(() => {
-                if (!isFocused) {
-                    setInputValue(value || EMPTY_LABEL);
-                }
-            }, [value, isFocused]);
 
             const filteredOptions = useMemo(() => {
                 const query = inputValue.trim().toLowerCase();
@@ -53,9 +47,10 @@ function SplitDropdown({stepKey, title, options, value, onSelect}: {
 
             const handleBlur = () => {
                 setIsFocused(false);
-                setInputValue(value || EMPTY_LABEL);
               setShowDropdown(false);
             };
+
+            const displayValue = isFocused ? inputValue : (value || EMPTY_LABEL);
 
   return (
     <Dropdown
@@ -69,13 +64,13 @@ function SplitDropdown({stepKey, title, options, value, onSelect}: {
     <div style={{ display: "flex", alignItems: "left", width: '100%' }}>
         <input
           type="text"
-          value={inputValue}
+          value={displayValue}
           onFocus={handleFocus}
           onBlur={handleBlur}
           onChange={handleChange}
           style={{
             width: '90%',
-            fontStyle: isDisplayText ? 'italic' : 'normal',
+            fontStyle: (displayValue === EMPTY_LABEL || displayValue === value) ? 'italic' : 'normal',
             opacity: isFocused && isDisplayText ? 0.7 : 1
           }}
         />

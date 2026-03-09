@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import SplitDropdown from './DropdownSection';
-import { STEPS, INTEREST_VARIABLES } from './constants';
+import { STEPS, INTEREST_VARIABLES, MODIFIER_OPTIONS, WAVES } from './constants';
 
 // 1. Define a clear Type for each step
 interface StepState {
@@ -37,13 +37,21 @@ export default function SelectionWizard() {
       // 4. Handle Logic Cascades (The "Dependency" part)
       if (stepKey === STEPS.INTEREST_VARIABLE) {
         // If Interest changes, unlock Wave and reset it
-        next[STEPS.WAVE] = { selection: '', active: !!value, options: ['Wave 1', 'Wave 2'] }; // Example options
+        next[STEPS.WAVE] = {
+          selection: '',
+          active: !!value,
+          options: WAVES[value as keyof typeof WAVES] ?? [],
+        };
         next[STEPS.MODIFIERS] = { selection: '', active: false, options: [] };
       } 
       
       if (stepKey === STEPS.WAVE) {
         // If Wave changes, unlock Modifiers
-        next[STEPS.MODIFIERS] = { selection: '', active: !!value, options: ['Option A', 'Option B'] };
+        next[STEPS.MODIFIERS] = {
+          selection: '',
+          active: !!value,
+          options: MODIFIER_OPTIONS[value as keyof typeof MODIFIER_OPTIONS] ?? [],
+        };
       }
 
       return next;
