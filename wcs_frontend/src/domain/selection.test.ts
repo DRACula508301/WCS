@@ -10,6 +10,7 @@ describe('selection domain', () => {
     expect(
       isValidSelection({
         interestVariable: '',
+        interestVariableLabel: '',
         wave: 'Wave 1',
         modifier: 'Option A',
       }),
@@ -20,6 +21,7 @@ describe('selection domain', () => {
     expect(
       isValidSelection({
         interestVariable: 'Income',
+        interestVariableLabel: 'Income',
         wave: '',
         modifier: 'Option A',
       }),
@@ -30,6 +32,7 @@ describe('selection domain', () => {
     expect(
       isValidSelection({
         interestVariable: 'Income',
+        interestVariableLabel: 'Income',
         wave: 'Wave 1',
         modifier: '',
       }),
@@ -40,6 +43,7 @@ describe('selection domain', () => {
     expect(
       isValidSelection({
         interestVariable: 'Income',
+        interestVariableLabel: 'Income',
         wave: 'Wave 1',
         modifier: 'Option A',
       }),
@@ -49,6 +53,7 @@ describe('selection domain', () => {
   it('initializes EMPTY_SELECTION with empty strings', () => {
     expect(EMPTY_SELECTION).toEqual({
       interestVariable: '',
+      interestVariableLabel: '',
       wave: '',
       modifier: '',
     })

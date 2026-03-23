@@ -1,4 +1,6 @@
 .github/prompts/
+*data/
+csv_output/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

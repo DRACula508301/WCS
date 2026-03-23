@@ -7,28 +7,32 @@ const EMPTY_LABEL = 'Select an option...';
 function SplitDropdown({stepKey, title, options, value, onSelect}: {
         stepKey: number, 
         title: string, 
-        options: string[], 
+        options: Record<string, string>,
         value: string, 
-        onSelect: (stepKey: number, value: string) => void}) {
-            const [inputValue, setInputValue] = useState(value || EMPTY_LABEL);
+    onSelect: (stepKey: number, value: string, label: string) => void}) {
+      const selectedLabel = value ? (options[value] ?? value) : '';
+      const [inputValue, setInputValue] = useState(selectedLabel || EMPTY_LABEL);
             const [isFocused, setIsFocused] = useState(false);
             const [showDropdown, setShowDropdown] = useState(false);
 
             const filteredOptions = useMemo(() => {
                 const query = inputValue.trim().toLowerCase();
+        const entries = Object.entries(options);
 
-                if (!isFocused || !query || inputValue === EMPTY_LABEL || inputValue === value) {
-                    return options;
+        if (!isFocused || !query || inputValue === EMPTY_LABEL || inputValue === selectedLabel) {
+          return entries;
                 }
 
-                return options.filter((option) => option.toLowerCase().includes(query));
-            }, [inputValue, isFocused, options, value]);
+        return entries.filter(([optionValue, optionLabel]) => {
+          return optionLabel.toLowerCase().includes(query) || optionValue.toLowerCase().includes(query);
+        });
+      }, [inputValue, isFocused, options, selectedLabel]);
 
-            const isDisplayText = inputValue === EMPTY_LABEL || inputValue === value;
+      const isDisplayText = inputValue === EMPTY_LABEL || inputValue === selectedLabel;
 
             const handleFocus = (event: React.FocusEvent<HTMLInputElement>) => {
                 setIsFocused(true);
-                setInputValue(value || EMPTY_LABEL);
+        setInputValue(selectedLabel || EMPTY_LABEL);
                 event.currentTarget.select();
             };
 
@@ -38,9 +42,9 @@ function SplitDropdown({stepKey, title, options, value, onSelect}: {
                 setShowDropdown(true);
             };
 
-            const handleSelectOption = (option: string) => {
-                onSelect(stepKey, option);
-                setInputValue(option);
+            const handleSelectOption = (optionValue: string) => {
+              onSelect(stepKey, optionValue, options[optionValue] ?? optionValue);
+              setInputValue(options[optionValue] ?? optionValue);
                 setIsFocused(false);
                 setShowDropdown(false);
             };
@@ -50,7 +54,7 @@ function SplitDropdown({stepKey, title, options, value, onSelect}: {
               setShowDropdown(false);
             };
 
-            const displayValue = isFocused ? inputValue : (value || EMPTY_LABEL);
+            const displayValue = isFocused ? inputValue : (selectedLabel || EMPTY_LABEL);
 
   return (
     <Dropdown
@@ -78,8 +82,8 @@ function SplitDropdown({stepKey, title, options, value, onSelect}: {
       <Dropdown.Toggle split variant="success" id="dropdown-split-basic" />
 
       <Dropdown.Menu>
-        {filteredOptions.map((option) => (
-          <Dropdown.Item key={option} onMouseDown={(event) => event.preventDefault()} onClick={() => handleSelectOption(option)}>{option}</Dropdown.Item>
+        {filteredOptions.map(([optionValue, optionLabel]) => (
+          <Dropdown.Item key={optionValue} onMouseDown={(event) => event.preventDefault()} onClick={() => handleSelectOption(optionValue)}>{optionLabel}</Dropdown.Item>
         ))}
       </Dropdown.Menu>
     </div>

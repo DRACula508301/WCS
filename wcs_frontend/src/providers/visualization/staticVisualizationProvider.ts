@@ -1,41 +1,24 @@
-import { isValidSelection, type SelectionState } from '../../domain/selection'
-import type {
-  VisualizationData,
-  VisualizationDataProvider,
-  VisualizationSeries,
-} from './VisualizationDataProvider'
+import { BaseVisualizationDataProvider, type ProviderSurveyRow } from './baseVisualizationProvider'
+import {
+  INTEREST_RESPONSE_OPTIONS,
+  INTEREST_VARIABLE_QUESTIONS,
+  STATIC_SURVEY_ROWS,
+} from './staticSurveyData'
 
-const EMPTY_VISUALIZATION: VisualizationData = {
-  title: 'Visualization Placeholder',
-  selectionLabel: 'Incomplete selection',
-  series: [],
-}
-
-export class StaticVisualizationDataProvider implements VisualizationDataProvider {
-  async getVisualizationData(selection: SelectionState): Promise<VisualizationData> {
-    if (!isValidSelection(selection)) {
-      return EMPTY_VISUALIZATION
-    }
-
-    const seed = this.getSeed(selection)
-    const series: VisualizationSeries = {
-      id: `${selection.interestVariable}-${selection.wave}-${selection.modifier}`,
-      points: Array.from({ length: 8 }, (_, index) => ({
-        x: index + 1,
-        y: (seed * (index + 3) + index * index * 7) % 100,
-      })),
-    }
-
-    return {
-      title: 'Visualization Placeholder',
-      selectionLabel: `${selection.interestVariable} / ${selection.wave} / ${selection.modifier}`,
-      series: [series],
-    }
+export class StaticVisualizationDataProvider extends BaseVisualizationDataProvider {
+  protected async getRowsForWave(wave: string): Promise<ProviderSurveyRow[]> {
+    return STATIC_SURVEY_ROWS.filter((row) => row.wave === wave)
   }
 
-  private getSeed(selection: SelectionState): number {
-    const label = `${selection.interestVariable}|${selection.wave}|${selection.modifier}`
+  protected getResponseOptions(interestVariable: string): string[] {
+    return INTEREST_RESPONSE_OPTIONS[interestVariable] ?? []
+  }
 
-    return Array.from(label).reduce((sum, char) => sum + char.charCodeAt(0), 0)
+  protected getQuestionText(interestVariable: string): string | undefined {
+    return INTEREST_VARIABLE_QUESTIONS[interestVariable]
+  }
+
+  protected async getRowsForColorLookup(_groupedBy: string): Promise<ProviderSurveyRow[]> {
+    return STATIC_SURVEY_ROWS
   }
 }

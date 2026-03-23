@@ -1,16 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import SplitDropdown from './DropdownSection';
-import { STEPS, INTEREST_VARIABLES, MODIFIER_OPTIONS, WAVES } from './constants';
+import { STEPS } from './constants';
+import type { SelectionState } from '../domain/selection';
+import type { OptionProvider } from '../providers/options/OptionProvider';
 
-// 1. Define a clear Type for each step
-interface StepState {
-  selection: string;
-  active: boolean;
-  options: string[];
+interface SelectionWizardProps {
+  selection: SelectionState;
+  onSelectionChange: (next: SelectionState) => void;
+  optionProvider: OptionProvider;
 }
-
-// 2. Define the overall Wizard State structure
-type WizardState = Record<number, StepState>;
 
 const titles = {
   [STEPS.INTEREST_VARIABLE]: 'Interest Variable',
@@ -18,43 +16,131 @@ const titles = {
   [STEPS.MODIFIERS]: 'Grouped by'
 };
 
-export default function SelectionWizard() {
-  
-  // 3. Initialize everything in one object
-  const [wizard, setWizard] = useState<WizardState>({
-    [STEPS.INTEREST_VARIABLE]: { selection: '', active: true, options: INTEREST_VARIABLES },
-    [STEPS.WAVE]: { selection: '', active: false, options: [] },
-    [STEPS.MODIFIERS]: { selection: '', active: false, options: [] },
-  });
+const toIdentityOptions = (values: string[]): Record<string, string> => {
+  return Object.fromEntries(values.map((value) => [value, value]));
+};
 
-  const handleSelection = (stepKey: number, value: string) => {
-    setWizard((prev) => {
-      const next = { ...prev };
+export default function SelectionWizard({
+  selection,
+  onSelectionChange,
+  optionProvider,
+}: SelectionWizardProps) {
+  const [interestOptions, setInterestOptions] = useState<Record<string, string>>({});
+  const [waveOptions, setWaveOptions] = useState<string[]>([]);
+  const [modifierOptions, setModifierOptions] = useState<string[]>([]);
 
-      // Update the current selection
-      next[stepKey] = { ...prev[stepKey], selection: value };
+  const [isLoadingInterest, setIsLoadingInterest] = useState(false);
+  const [isLoadingWaves, setIsLoadingWaves] = useState(false);
+  const [isLoadingModifiers, setIsLoadingModifiers] = useState(false);
 
-      // 4. Handle Logic Cascades (The "Dependency" part)
-      if (stepKey === STEPS.INTEREST_VARIABLE) {
-        // If Interest changes, unlock Wave and reset it
-        next[STEPS.WAVE] = {
-          selection: '',
-          active: !!value,
-          options: WAVES[value as keyof typeof WAVES] ?? [],
-        };
-        next[STEPS.MODIFIERS] = { selection: '', active: false, options: [] };
-      } 
-      
-      if (stepKey === STEPS.WAVE) {
-        // If Wave changes, unlock Modifiers
-        next[STEPS.MODIFIERS] = {
-          selection: '',
-          active: !!value,
-          options: MODIFIER_OPTIONS[value as keyof typeof MODIFIER_OPTIONS] ?? [],
-        };
+  useEffect(() => {
+    let isActive = true;
+
+    const loadInterestOptions = async () => {
+      setIsLoadingInterest(true);
+      try {
+        const options = await optionProvider.getInterestVariables();
+        if (isActive) {
+          setInterestOptions(options);
+        }
+      } finally {
+        if (isActive) {
+          setIsLoadingInterest(false);
+        }
+      }
+    };
+
+    void loadInterestOptions();
+
+    return () => {
+      isActive = false;
+    };
+  }, [optionProvider]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadWaveOptions = async () => {
+      if (!selection.interestVariable) {
+        setWaveOptions([]);
+        return;
       }
 
-      return next;
+      setIsLoadingWaves(true);
+      try {
+        const options = await optionProvider.getWaves(selection.interestVariable);
+        if (isActive) {
+          setWaveOptions(options);
+        }
+      } finally {
+        if (isActive) {
+          setIsLoadingWaves(false);
+        }
+      }
+    };
+
+    void loadWaveOptions();
+
+    return () => {
+      isActive = false;
+    };
+  }, [optionProvider, selection.interestVariable]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadModifierOptions = async () => {
+      if (!selection.wave) {
+        setModifierOptions([]);
+        return;
+      }
+
+      setIsLoadingModifiers(true);
+      try {
+        const options = await optionProvider.getModifiers(selection.wave);
+        if (isActive) {
+          setModifierOptions(options);
+        }
+      } finally {
+        if (isActive) {
+          setIsLoadingModifiers(false);
+        }
+      }
+    };
+
+    void loadModifierOptions();
+
+    return () => {
+      isActive = false;
+    };
+  }, [optionProvider, selection.wave]);
+
+  const handleSelection = (stepKey: number, value: string, label: string) => {
+    if (stepKey === STEPS.INTEREST_VARIABLE) {
+      onSelectionChange({
+        interestVariable: value,
+        interestVariableLabel: label,
+        wave: '',
+        modifier: '',
+      });
+      return;
+    }
+
+    if (stepKey === STEPS.WAVE) {
+      onSelectionChange({
+        interestVariable: selection.interestVariable,
+        interestVariableLabel: selection.interestVariableLabel,
+        wave: value,
+        modifier: '',
+      });
+      return;
+    }
+
+    onSelectionChange({
+      interestVariable: selection.interestVariable,
+      interestVariableLabel: selection.interestVariableLabel,
+      wave: selection.wave,
+      modifier: value,
     });
   };
 
@@ -68,29 +154,29 @@ export default function SelectionWizard() {
         <SplitDropdown
           stepKey={STEPS.INTEREST_VARIABLE}
           title={titles[STEPS.INTEREST_VARIABLE]}
-          options={wizard[STEPS.INTEREST_VARIABLE].options}
-          value={wizard[STEPS.INTEREST_VARIABLE].selection}
+          options={isLoadingInterest ? {} : interestOptions}
+          value={selection.interestVariable}
           onSelect={handleSelection}
         />
 
         {/* Step 2 - Only show if active */}
-        {wizard[STEPS.WAVE].active && (
+        {!!selection.interestVariable && (
           <SplitDropdown
             stepKey={STEPS.WAVE}
             title={titles[STEPS.WAVE]}
-            options={wizard[STEPS.WAVE].options}
-            value={wizard[STEPS.WAVE].selection}
+            options={isLoadingWaves ? {} : toIdentityOptions(waveOptions)}
+            value={selection.wave}
             onSelect={handleSelection}
           />
         )}
 
         {/* Step 3 */}
-        {wizard[STEPS.MODIFIERS].active && (
+        {!!selection.wave && (
           <SplitDropdown
             stepKey={STEPS.MODIFIERS}
             title={titles[STEPS.MODIFIERS]}
-            options={wizard[STEPS.MODIFIERS].options}
-            value={wizard[STEPS.MODIFIERS].selection}
+            options={isLoadingModifiers ? {} : toIdentityOptions(modifierOptions)}
+            value={selection.modifier}
             onSelect={handleSelection}
           />
         )}

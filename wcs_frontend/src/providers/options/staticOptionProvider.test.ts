@@ -7,20 +7,30 @@ describe('StaticOptionProvider', () => {
   it('getInterestVariables resolves a non-empty list', async () => {
     const options = await provider.getInterestVariables()
 
-    expect(options.length).toBeGreaterThan(0)
-    expect(options).toContain('IV1')
+    expect(Object.keys(options).length).toBeGreaterThan(0)
+    expect(options).toHaveProperty('A1')
+    expect(options).toHaveProperty('newsint')
   })
 
   it('getWaves resolves expected values for a known interest variable', async () => {
-    const waves = await provider.getWaves('IV1')
+    const waves = await provider.getWaves('A1')
 
-    expect(waves).toEqual(['Wave1', 'Wave2', 'Wave3'])
+    expect(waves).toEqual([
+      'Wave 1 (Oct 2023)',
+      'Wave 2 (Feb 2024)',
+      'Wave 3 (May 2024)',
+      'Wave 4 (Oct 2024)',
+      'Wave 5 (Feb 2025)',
+      'Wave 6 (May 2025)',
+    ])
   })
 
   it('getModifiers resolves expected values for a known wave', async () => {
-    const modifiers = await provider.getModifiers('Wave2')
+    const modifiers = await provider.getModifiers('Wave 2 (Feb 2024)')
 
-    expect(modifiers).toEqual(['Modifier2', 'Modifier3', 'Modifier4'])
+    expect(modifiers).toContain('None')
+    expect(modifiers).toContain('pid7')
+    expect(modifiers).toContain('age4')
   })
 
   it('returns empty arrays for unknown input', async () => {
@@ -30,7 +40,7 @@ describe('StaticOptionProvider', () => {
 
   it('all methods resolve without throwing for valid inputs', async () => {
     await expect(provider.getInterestVariables()).resolves.toBeDefined()
-    await expect(provider.getWaves('IV2')).resolves.toBeDefined()
-    await expect(provider.getModifiers('Wave4')).resolves.toBeDefined()
+    await expect(provider.getWaves('A2')).resolves.toBeDefined()
+    await expect(provider.getModifiers('Wave 4 (Oct 2024)')).resolves.toBeDefined()
   })
 })
