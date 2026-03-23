@@ -61,6 +61,8 @@ export default function Visualization({
 				borderRadius: '8px',
 				padding: '1rem',
 				backgroundColor: '#fff',
+				display: 'flex',
+				flexDirection: 'column',
 			}}
 		>
 			<h3 style={{ marginBottom: '0.25rem' }}>{data.title}</h3>
@@ -78,10 +80,19 @@ export default function Visualization({
 			</div>
 			<div style={{ color: '#666666', fontSize: '12px', marginBottom: '0.75rem' }}>{data.subtitle}</div>
 
-			{!hasBars ? (
-				<div style={{ padding: '1rem 0', color: '#666' }}>Complete your selections to render the bar chart.</div>
-			) : (
-				<div style={{ width: '100%', border: '1px solid #eee', borderRadius: 6, height: 'clamp(280px, 45vh, 520px)' }}>
+			<div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
+				<div
+					style={{
+						width: '100%',
+						border: '1px solid #eee',
+						borderRadius: 6,
+						height: 'clamp(280px, 45vh, 520px)',
+						display: 'flex',
+						flexDirection: 'column',
+						justifyContent: 'space-between',
+						padding: '0.25rem 0.25rem 0.75rem',
+					}}
+				>
 					<svg
 						width="100%"
 						height="100%"
@@ -121,7 +132,7 @@ export default function Visualization({
 													width={x1.bandwidth()}
 													height={Math.max(0, barHeight)}
 													fill={segment.color}
-											>
+												>
 													<title>{`${bar.category} · ${segment.label}: ${segment.percentage.toFixed(1)}%`}</title>
 												</rect>
 											)
@@ -149,19 +160,31 @@ export default function Visualization({
 								)
 							})}
 
+							{!hasBars && (
+								<text
+									x={plotWidth / 2}
+									y={plotHeight / 2}
+									textAnchor="middle"
+									fontSize={13}
+									fill="#666"
+								>
+									Complete your selections to render the bar chart.
+								</text>
+							)}
+
 							<line x1={0} x2={plotWidth} y1={plotHeight} y2={plotHeight} stroke="#999" />
 						</g>
 					</svg>
-				</div>
-			)}
 
-			<div style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-				{data.legend.map((item) => (
-					<div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '12px' }}>
-						<span style={{ width: 12, height: 12, backgroundColor: item.color, display: 'inline-block' }} />
-						<span>{item.label}</span>
+					<div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+						{data.legend.map((item) => (
+							<div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '12px' }}>
+								<span style={{ width: 12, height: 12, backgroundColor: item.color, display: 'inline-block' }} />
+								<span>{item.label}</span>
+							</div>
+						))}
 					</div>
-				))}
+				</div>
 			</div>
 
 			<div style={{ marginTop: '1rem', fontSize: '14px', color: '#444' }}>

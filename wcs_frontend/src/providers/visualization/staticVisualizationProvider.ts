@@ -1,24 +1,12 @@
-import { BaseVisualizationDataProvider, type ProviderSurveyRow } from './baseVisualizationProvider'
-import {
-  INTEREST_RESPONSE_OPTIONS,
-  INTEREST_VARIABLE_QUESTIONS,
-  STATIC_SURVEY_ROWS,
-} from './staticSurveyData'
+import type { SelectionState } from '../../domain/selection'
+import { BaseVisualizationDataProvider } from './baseVisualizationProvider'
+import type { AggregatedVisualizationPayload } from './VisualizationDataProvider'
+import { simulateVisualizationResponse } from './simulatedVisualizationApi'
 
 export class StaticVisualizationDataProvider extends BaseVisualizationDataProvider {
-  protected async getRowsForWave(wave: string): Promise<ProviderSurveyRow[]> {
-    return STATIC_SURVEY_ROWS.filter((row) => row.wave === wave)
-  }
-
-  protected getResponseOptions(interestVariable: string): string[] {
-    return INTEREST_RESPONSE_OPTIONS[interestVariable] ?? []
-  }
-
-  protected getQuestionText(interestVariable: string): string | undefined {
-    return INTEREST_VARIABLE_QUESTIONS[interestVariable]
-  }
-
-  protected async getRowsForColorLookup(_groupedBy: string): Promise<ProviderSurveyRow[]> {
-    return STATIC_SURVEY_ROWS
+  protected async fetchAggregatedPayload(
+    selection: SelectionState,
+  ): Promise<AggregatedVisualizationPayload> {
+    return simulateVisualizationResponse(selection)
   }
 }

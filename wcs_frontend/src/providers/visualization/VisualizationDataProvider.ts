@@ -31,6 +31,20 @@ export interface VisualizationData {
   legend: LegendItem[]
 }
 
+export type AggregatedPercentageVector = number[]
+export type AggregatedPercentageMatrix = number[][]
+
+export interface AggregatedVisualizationPayload {
+  options: string[]
+  unweighted: AggregatedPercentageVector | AggregatedPercentageMatrix
+  weighted: AggregatedPercentageVector | AggregatedPercentageMatrix
+  modifierOptions?: string[]
+  questionText?: string
+  groupedBy?: string | null
+  title?: string
+  missingOptionLabels?: string[]
+}
+
 export interface VisualizationDataProvider {
   getVisualizationData(
     selection: SelectionState,

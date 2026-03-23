@@ -6,12 +6,12 @@ import { EMPTY_SELECTION, type SelectionState } from './domain/selection'
 import { LocalOptionProvider } from './providers/options/localOptionProvider'
 import Visualization from './components/Visualization'
 import type { VisualizationData } from './providers/visualization/VisualizationDataProvider'
-import { StaticVisualizationDataProvider } from './providers/visualization/staticVisualizationProvider'
+import { LocalVisualizationProvider } from './providers/visualization/localVisualizationProvider'
 
 function App() {
   const [selection, setSelection] = useState<SelectionState>(EMPTY_SELECTION)
   const optionProvider = useMemo(() => new LocalOptionProvider(), [])
-  const visualizationProvider = useMemo(() => new StaticVisualizationDataProvider(), [])
+  const visualizationProvider = useMemo(() => new LocalVisualizationProvider(), [])
 
   const [visualizationData, setVisualizationData] = useState<VisualizationData>({
     title: 'Weidenbaum Center Survey (WCS) Dashboard',

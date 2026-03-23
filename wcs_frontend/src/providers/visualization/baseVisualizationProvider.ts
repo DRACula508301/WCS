@@ -1,18 +1,12 @@
 import { isValidSelection, type SelectionState } from '../../domain/selection'
 import type {
+  AggregatedVisualizationPayload,
   LegendItem,
   PercentageBar,
   VisualizationData,
   VisualizationDataProvider,
   VisualizationOptions,
 } from './VisualizationDataProvider'
-
-export interface ProviderSurveyRow {
-  wave: string
-  weight: number
-  responses: Record<string, string>
-  modifiers: Record<string, string>
-}
 
 const EMPTY_VISUALIZATION: VisualizationData = {
   title: 'Weidenbaum Center Survey (WCS) Dashboard',
@@ -28,9 +22,9 @@ const DEFAULT_VISUALIZATION_OPTIONS: VisualizationOptions = {
   useWeightedPercentages: true,
 }
 
-const NA_RESPONSE_VALUES = new Set(['N/A', 'Not sure', 'Other', 'Skipped'])
-const NA_CATEGORY = 'N/A'
+const DEFAULT_MISSING_LABELS = ['null/missing', 'n/a', 'not sure', 'skipped', 'missing', 'other']
 const OVERALL_COLOR = '#0072B2'
+const MISSING_COLOR = '#969696'
 
 export abstract class BaseVisualizationDataProvider implements VisualizationDataProvider {
   async getVisualizationData(
@@ -41,45 +35,26 @@ export abstract class BaseVisualizationDataProvider implements VisualizationData
       return EMPTY_VISUALIZATION
     }
 
-    const rowsForWave = await this.getRowsForWave(selection.wave)
-    const normalizedRows = this.normalizeRowsForNA(
-      rowsForWave,
-      selection.interestVariable,
-      options.includeNAResponses,
-    )
-
-    const rowsForCalculation = options.includeNAResponses
-      ? normalizedRows
-      : normalizedRows.filter((row) => row.responses[selection.interestVariable] !== NA_CATEGORY)
-
-    const categories = this.buildCategories(
-      this.getResponseOptions(selection.interestVariable),
-      options.includeNAResponses,
-    )
+    const payload = await this.fetchAggregatedPayload(selection)
     const groupedBy = selection.modifier === 'None' ? null : selection.modifier
-
-    const total = rowsForCalculation.reduce(
-      (sum, row) => sum + this.getRowValue(row, options.useWeightedPercentages),
-      0,
+    const matrix = this.toMatrix(
+      options.useWeightedPercentages ? payload.weighted : payload.unweighted,
+      payload.options.length,
     )
+    const normalized = options.includeNAResponses
+      ? { options: payload.options, matrix }
+      : this.excludeAndRenormalizeMissing(payload, matrix)
 
-    const colorLookupRows = groupedBy ? await this.getRowsForColorLookup(groupedBy) : rowsForCalculation
-    const bars = this.computeBars(
-      rowsForCalculation,
-      selection.interestVariable,
-      categories,
-      groupedBy,
-      total,
-      options.useWeightedPercentages,
-      colorLookupRows,
-    )
+    const segmentLabels = groupedBy ? payload.modifierOptions ?? [] : ['Overall']
+    const colorMap = this.getGroupColorMap(groupedBy, segmentLabels)
+    const bars = this.buildBars(normalized.options, normalized.matrix, groupedBy, segmentLabels, colorMap)
 
     const questionText =
-      this.getQuestionText(selection.interestVariable) ?? selection.interestVariableLabel
+      payload.questionText ?? selection.interestVariableLabel
 
     return {
-      title: this.buildTitle(selection),
-      subtitle: this.buildSubtitle(total, options),
+      title: payload.title ?? this.buildTitle(selection),
+      subtitle: this.buildSubtitle(options),
       questionText,
       groupedBy,
       bars,
@@ -87,117 +62,101 @@ export abstract class BaseVisualizationDataProvider implements VisualizationData
     }
   }
 
-  protected abstract getRowsForWave(wave: string): Promise<ProviderSurveyRow[]>
+  protected abstract fetchAggregatedPayload(
+    selection: SelectionState,
+  ): Promise<AggregatedVisualizationPayload>
 
-  protected abstract getResponseOptions(interestVariable: string): string[]
-
-  protected abstract getQuestionText(interestVariable: string): string | undefined
-
-  protected async getRowsForColorLookup(_groupedBy: string): Promise<ProviderSurveyRow[]> {
-    return []
-  }
-
-  protected getRowValue(row: ProviderSurveyRow, useWeightedPercentages: boolean): number {
-    return useWeightedPercentages ? row.weight : 1
-  }
-
-  private normalizeRowsForNA(
-    rows: ProviderSurveyRow[],
-    interestVariable: string,
-    includeNAResponses: boolean,
-  ): ProviderSurveyRow[] {
-    if (!includeNAResponses) {
-      return rows
+  private toMatrix(
+    source: AggregatedVisualizationPayload['weighted'] | AggregatedVisualizationPayload['unweighted'],
+    optionCount: number,
+  ): number[][] {
+    if (source.length === 0) {
+      return []
     }
 
-    return rows.map((row) => {
-      const responseValue = row.responses[interestVariable]
-      if (!responseValue || NA_RESPONSE_VALUES.has(responseValue)) {
-        return {
-          ...row,
-          responses: {
-            ...row.responses,
-            [interestVariable]: NA_CATEGORY,
-          },
-        }
-      }
-
-      return row
-    })
-  }
-
-  private buildCategories(baseCategories: string[], includeNAResponses: boolean): string[] {
-    const nonNA = baseCategories.filter((category) => !NA_RESPONSE_VALUES.has(category))
-
-    if (!includeNAResponses) {
-      return nonNA
+    const first = source[0]
+    if (Array.isArray(first)) {
+      return source as number[][]
     }
 
-    return [...nonNA, NA_CATEGORY]
+    const vector = source as number[]
+    return vector.slice(0, optionCount).map((value) => [value])
   }
 
-  private computeBars(
-    rows: ProviderSurveyRow[],
-    interestVariable: string,
-    categories: string[],
+  private excludeAndRenormalizeMissing(
+    payload: AggregatedVisualizationPayload,
+    matrix: number[][],
+  ): { options: string[]; matrix: number[][] } {
+    const missingLabels = new Set(
+      (payload.missingOptionLabels ?? DEFAULT_MISSING_LABELS).map((value) => value.trim().toLowerCase()),
+    )
+
+    const includedRows = payload.options
+      .map((option, index) => ({ option, index }))
+      .filter(({ option }) => !missingLabels.has(option.trim().toLowerCase()))
+
+    const denominator = includedRows.reduce((sum, { index }) => {
+      const row = matrix[index] ?? []
+      return sum + row.reduce((inner, value) => inner + value, 0)
+    }, 0)
+
+    const safeDenominator = denominator > 0 ? denominator : 1
+    const includedIndex = new Set(includedRows.map((item) => item.index))
+
+    return {
+      options: includedRows.map((item) => item.option),
+      matrix: matrix
+        .map((row, index) => ({ row, index }))
+        .filter(({ index }) => includedIndex.has(index))
+        .map(({ row }) => row.map((value) => Number(((100 * value) / safeDenominator).toFixed(2)))),
+    }
+  }
+
+  private isMissingCategory(category: string): boolean {
+    const normalized = category.trim().toLowerCase()
+    return DEFAULT_MISSING_LABELS.includes(normalized)
+  }
+
+  private buildBars(
+    options: string[],
+    matrix: number[][],
     groupedBy: string | null,
-    total: number,
-    useWeightedPercentages: boolean,
-    colorLookupRows: ProviderSurveyRow[],
+    segmentLabels: string[],
+    colorMap: Map<string, string>,
   ): PercentageBar[] {
-    const safeTotal = total || 1
-
-    return categories.map((category) => {
-      const categoryRows = rows.filter((row) => row.responses[interestVariable] === category)
-      const categoryTotal = categoryRows.reduce(
-        (sum, row) => sum + this.getRowValue(row, useWeightedPercentages),
-        0,
-      )
-      const categoryPercentage = (100 * categoryTotal) / safeTotal
+    return options.map((category, optionIndex) => {
+      const row = matrix[optionIndex] ?? []
 
       if (!groupedBy) {
+        const singleValue = row[0] ?? 0
         return {
           category,
-          percentage: Number(categoryPercentage.toFixed(2)),
+          percentage: Number(singleValue.toFixed(2)),
           segments: [
             {
               label: category,
-              percentage: Number(categoryPercentage.toFixed(2)),
-              color: OVERALL_COLOR,
+              percentage: Number(singleValue.toFixed(2)),
+              color: this.isMissingCategory(category) ? MISSING_COLOR : OVERALL_COLOR,
             },
           ],
         }
       }
 
-      const groupedWeights = new Map<string, number>()
-      categoryRows.forEach((row) => {
-        const groupValue = row.modifiers[groupedBy]
-        if (!groupValue) {
-          return
-        }
-
-        groupedWeights.set(
-          groupValue,
-          (groupedWeights.get(groupValue) ?? 0) + this.getRowValue(row, useWeightedPercentages),
-        )
-      })
-
-      const colors = this.getGroupColorMap(groupedBy, colorLookupRows)
-      const segments = Array.from(groupedWeights.entries()).map(([label, weight]) => ({
+      const segments = segmentLabels.map((label, segmentIndex) => ({
         label,
-        percentage: Number(((100 * weight) / safeTotal).toFixed(2)),
-        color: colors.get(label) ?? '#999999',
+        percentage: Number((row[segmentIndex] ?? 0).toFixed(2)),
+        color: colorMap.get(label) ?? '#999999',
       }))
 
       return {
         category,
-        percentage: Number(categoryPercentage.toFixed(2)),
+        percentage: Number(segments.reduce((sum, segment) => sum + segment.percentage, 0).toFixed(2)),
         segments,
       }
     })
   }
 
-  private getGroupColorMap(groupedBy: string, rows: ProviderSurveyRow[]): Map<string, string> {
+  private getGroupColorMap(groupedBy: string | null, labels: string[]): Map<string, string> {
     const partyColors7 = new Map<string, string>([
       ['Strong Democrat', '#08306B'],
       ['Not very strong Democrat', '#2171B5'],
@@ -246,6 +205,10 @@ export abstract class BaseVisualizationDataProvider implements VisualizationData
       '#999999',
     ]
 
+    if (!groupedBy) {
+      return new Map<string, string>([['Overall', OVERALL_COLOR]])
+    }
+
     if (groupedBy === 'pid7') {
       return partyColors7
     }
@@ -262,9 +225,7 @@ export abstract class BaseVisualizationDataProvider implements VisualizationData
       return ideoColors3
     }
 
-    const values = rows.map((row) => row.modifiers[groupedBy]).filter(Boolean)
-    const uniqueValues = Array.from(new Set(values))
-    return new Map(uniqueValues.map((value, index) => [value, okabeIto[index % okabeIto.length]]))
+    return new Map(labels.map((value, index) => [value, okabeIto[index % okabeIto.length]]))
   }
 
   private buildLegend(bars: PercentageBar[], groupedBy: string | null): LegendItem[] {
@@ -286,9 +247,9 @@ export abstract class BaseVisualizationDataProvider implements VisualizationData
     return `${selection.wave}: ${selection.interestVariableLabel}${selection.modifier === 'None' ? '' : ` by ${selection.modifier}`}`
   }
 
-  private buildSubtitle(total: number, options: VisualizationOptions): string {
+  private buildSubtitle(options: VisualizationOptions): string {
     const mode = options.useWeightedPercentages ? 'Weighted' : 'Unweighted'
     const naMode = options.includeNAResponses ? 'N/A included' : 'N/A excluded'
-    return `${mode} · ${naMode} · N=${Math.round(total).toLocaleString()}`
+    return `${mode} · ${naMode}`
   }
 }
